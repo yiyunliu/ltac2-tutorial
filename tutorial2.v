@@ -95,57 +95,25 @@ Module MonoidSimp (M : Monoid).
 
   (* Apply monoid_reflect and simplify the result for a goal of the
   form a = b where a and b are both of type M *)
-  Ltac2 rec simp_monoid () :=
+  Ltac2 rec monoid_simp () :=
     lazy_match! goal with
     | [ |- ?a = ?b] =>
         let m0 := reify a in
         let m1 := reify b in
-        change (denote_mexp $m0 = denote_mexp $m1);
-        apply monoid_reflect;
-        simpl
+        apply (monoid_reflect $m0 $m1)
     | [ |- _] => Control.backtrack_tactic_failure "Wrong goal type"
     end.
 
 End MonoidSimp.
 
+(* Let's try out the simplifier *)
+Module MonoidSimpTest (Import A : Monoid).
+  Module AS :=  MonoidSimp A.
+  Import AS.
 
-(* Now let's try out our new simplifier *)
-Module MonoidNat <: Monoid.
-
-  Definition M := nat.
-
-  (* Neutral element *)
-  Definition mzero := 0.
-
-  (* Binary operator *)
-  Definition madd := Nat.add.
-
-  (* Axioms *)
-  Lemma madd_assoc : forall a b c, madd (madd a b) c = madd a (madd b c).
+  Example test0 : forall (a b c d : M),
+      madd a (madd (madd b c) d) = madd (madd a b) (madd c d).
   Proof.
-    unfold madd. intros a b c.
-    rewrite PeanoNat.Nat.add_assoc.
-    reflexivity.
+    intros a b c d. monoid_simp(). simpl. reflexivity.
   Qed.
-
-  Lemma madd_idl : forall a, madd mzero a = a.
-  Proof.
-    apply PeanoNat.Nat.add_0_l.
-  Qed.
-
-  Lemma madd_idr : forall a, madd a mzero = a.
-  Proof.
-    apply PeanoNat.Nat.add_0_r.
-  Qed.
-End MonoidNat.
-
-Module MonoidNatSimp := MonoidSimp (MonoidNat).
-
-Import MonoidNat.
-Import MonoidNatSimp.
-
-Goal forall (a b c d : M), madd a (madd (madd b c) d) = madd (madd a b) (madd c d).
-  intros a b c d.
-  simp_monoid ().
-  reflexivity.
-Qed.
+End MonoidSimpTest.
