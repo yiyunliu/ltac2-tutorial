@@ -1,4 +1,46 @@
+(** * Ltac2 Tutorial: Programming basics and proof state manipulation *)
+
+(** Ltac2 is a new language for writing tactics in Coq. The rationale for the new tactic language
+can be found in #<a href="https://coq.inria.fr/doc/V8.18.0/refman/proof-engine/ltac2.html">the Coq
+documentation</a>#. As of late, the use of Ltac1 is #<a href="https://coq.inria.fr/doc/V8.18.0/refman/proof-engine/ltac.html">discouraged</a>#,
+though there are still plenty of tactics written in Ltac1 that have not been ported to Ltac2 (e.g. ssreflect).
+However, thanks to the convenient interfacing between Ltac1 and Ltac2, it is already possible to use Ltac2
+to write complex logic and export it for use in Ltac1. Compared to Ltac1, I find Ltac2 much easier to learn,
+due to its much more sane treatment of metaprogramming where the metaprograms (i.e. Ltac2 expressions) and
+the object programs (i.e. Gallina terms) are cleanly separated. Furthermore, at its core, Ltac2 is much more
+expressive, with many useful features from ML-family languages, including algebraic data types, record types,
+pattern matching. Tactics are no longer special and are treated as effectual thunks that manipulate the proof
+state.
+
+Ltac2 comes with the Coq installation if your version number is recent enough.
+The tutorial was written using Coq 8.18.0, though an earlier version might also work for stepping through
+the examples. *)
+
+(** Before we start the tutorial, we first import the necessary file that would allow us to use Ltac2  *)
 From Ltac2 Require Import Ltac2.
+
+(** The command above not only makes Ltac2 available, but also sets the Proof Mode of the proof scripts to
+ "Ltac2" mode. This means we can only use
+ #<a href="https://github.com/coq/coq/blob/master/user-contrib/Ltac2/Notations.v">
+tactics defined in Ltac2</a>#. *)
+
+Goal forall (A : Prop), A -> A.
+  intros A h.
+  exact h.
+Qed.
+
+(** [intros A h] and [exact h] both work since they are defined in the Ltac2 standard library. *)
+
+Goal forall (A : Prop), A -> A.
+  Fail tauto.
+Abort.
+
+(** [tauto] fails since it is not defined in Ltac2. To invoke Ltac1 tactics, we need to wrap the tactics
+inside [ltac1:(..)] *)
+Goal forall (A : Prop), A -> A.
+  ltac1:(tauto).
+Qed.
+
 
 (* Simple expressions *)
 (* Note that int is not a data type available in Gallina *)
