@@ -35,7 +35,6 @@ Ltac2 rec collatz n :=
   if Int.le n 1
   then 0
   else
-    (* if is_even x *)
     if is_even n
     then Int.add 1 (collatz (Int.div n 2))
     else Int.add 1 (collatz (Int.add 1 (Int.mul 3 n))).
@@ -88,12 +87,8 @@ Definition four := 4.
 
 Ltac2 Eval 'four.
 
-(* Ltac2 Eval four. *)
-
-(* Ltac2 Eval 'five. *)
-
-(* int_n 3 ~> (1 + (1 + (1 + 0))) *)
-(* int_n 0 ~> 0 *)
+Fail Ltac2 Eval four.
+Fail Ltac2 Eval 'five.
 
 (* Inside a quote, we can refer to Ltac2 variables using $ *)
 (* If you are familiar with lisp, think of ' as `
@@ -104,11 +99,24 @@ Ltac2 rec int_n n :=
   else let m := int_n (Int.sub n 1) in
        '(1 + $m).
 
+(* int_n 3 ~> (1 + (1 + (1 + 0))) *)
+(* int_n 0 ~> 0 *)
 Ltac2 Eval int_n 4.
 
 (* We can use Constr.equal to test the syntactic equality (up to
    alpha-equivalence) of Gallina terms *)
 Ltac2 Eval Constr.equal '(fun x : nat => x) '(fun z : nat => z).
+
+(* On the other hand, 1 + 1 and 2 are syntactically distinct terms *)
+Ltac2 Eval Constr.equal '(1 + 1) '2.
+
+(* Use different eval algorithms to evaluate terms *)
+(* See https://github.com/coq/coq/blob/master/user-contrib/Ltac2/Std.v for different variants *)
+Ltac2 Eval Std.eval_vm None '(1 + 1).
+Ltac2 Eval Std.eval_vm None '((fun x => x * x) 100).
+Ltac2 Eval Std.eval_hnf '((fun x => x * x) 100).
+(* Trying to reduce an ill-typed term *)
+Fail Ltac2 Eval Std.eval_hnf '(1 + (fun x => x + x)).
 
 (* Ltac2 is impure. Apart from mutable cells, it's possible to query
 and mutate the proof state *)
@@ -135,19 +143,22 @@ Ltac2 Eval Control.goal.
 Lemma ex1 : 1 = 2 -> 1 = 2.
 Proof.
   intro H.
-  pose 4.
+  pose (4 : id nat) as n.
 
   Ltac2 Eval Control.hyps ().
   (* (@H, None, constr:(1 = 2)); *)
-  (* (@n, Some (constr:(4)), constr:(nat)) *)
+  (* (@n, Some (constr:(4)), constr:(id nat)) *)
 
   Ltac2 Eval Control.goal ().
   (* constr:(1 = 2) *)
 
   (* We can use the List.find from the standard library to look for an
      element from the list that we are interested in *)
-  Ltac2 Eval List.find (fun (_,_,ty) => Constr.equal ty 'nat) (Control.hyps ()).
-  (* (@n, Some (constr:(4)), constr:(nat)) *)
+  Ltac2 Eval List.find (fun (_,_,ty) => Constr.equal (Std.eval_vm None ty) 'nat) (Control.hyps ()).
+  (* (@n, Some (constr:(4 : id nat)), constr:(id nat)) *)
+
+  (* A direct comparison without Std.eval_vm would result in failure since id nat is not syntactically equal to nat *)
+  Fail Ltac2 Eval List.find (fun (_,_,ty) => Constr.equal ty 'nat) (Control.hyps ()).
 Abort.
 
 (* find_assumption finds a hypothesis that matches the goal *)
@@ -232,26 +243,6 @@ Qed.
 (* Tactics that take arguments are trickier because if we don't even
    have the type information of how many arguments the Ltac1 tactic
    takes *)
-
-(* Let's write an Ltac2 wrapper for the pick fresh tactic from the metalib *)
-Require Import Metalib.Metatheory.
-
-Ltac2 pick_fresh_for (x : ident) (l : constr) :=
-  ltac1:( x l |- pick fresh x for l) (Ltac1.of_ident x) (Ltac1.of_constr l).
-(* ltac1:(a b |- ...) has the signature Ltac1.t -> Ltac1.t -> unit *)
-(* Ltac1.t is an opaque type that represents an untyped Ltac1 argument *)
-Ltac2 Eval Ltac1.of_ident.
-
-(* Since pick_fresh_for takes two arguments, we want to use a fancier
-   notation *)
-Ltac2 Notation "pick" "fresh" x(ident) "for" l(constr) :=
-  pick_fresh_for x l.
-
-(* Note that if we declare an notation argument as a constr, then
-   whatever we pass in to the notation at that position is implicitly
-   quoted. *)
-(* TODO: example *)
-
 
 (* Extra: More on constr  *)
 (* constr is an opaque type so we can't directly pattern match on it
