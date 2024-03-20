@@ -4,10 +4,15 @@
 can be found in #<a href="https://coq.inria.fr/doc/V8.18.0/refman/proof-engine/ltac2.html">the Coq
 documentation</a>#. As of late, the use of Ltac1 is #<a href="https://coq.inria.fr/doc/V8.18.0/refman/proof-engine/ltac.html">discouraged</a>#,
 though there are still plenty of tactics written in Ltac1 that have not been ported to Ltac2 (e.g. ssreflect).
+
+
 However, thanks to the convenient interfacing between Ltac1 and Ltac2, it is already possible to use Ltac2
 to write complex logic and export it for use in Ltac1. Compared to Ltac1, I find Ltac2 much easier to learn,
 due to its much more sane treatment of metaprogramming where the metaprograms (i.e. Ltac2 expressions) and
-the object programs (i.e. Gallina terms) are cleanly separated. Furthermore, at its core, Ltac2 is much more
+the object programs (i.e. Gallina terms) are cleanly separated.
+
+
+Furthermore, compared to Ltac1, Ltac2 is much more
 expressive, with many useful features from ML-family languages, including algebraic data types, record types,
 pattern matching. Tactics are no longer special and are treated as effectual thunks that manipulate the proof
 state.
@@ -16,7 +21,8 @@ Ltac2 comes with the Coq installation if your version number is recent enough.
 The tutorial was written using Coq 8.18.0, though an earlier version might also work for stepping through
 the examples. *)
 
-(** Before we start the tutorial, we first import the necessary file that would allow us to use Ltac2  *)
+(** ** Proof mode *)
+(** Before we start the tutorial, we first import the necessary file that would allow us to use Ltac2.  *)
 From Ltac2 Require Import Ltac2.
 
 (** The command above not only makes Ltac2 available, but also sets the Proof Mode of the proof scripts to
@@ -25,6 +31,7 @@ From Ltac2 Require Import Ltac2.
 tactics defined in Ltac2</a>#. *)
 
 Goal forall (A : Prop), A -> A.
+Proof.
   intros A h.
   exact h.
 Qed.
@@ -32,17 +39,19 @@ Qed.
 (** [intros A h] and [exact h] both work since they are defined in the Ltac2 standard library. *)
 
 Goal forall (A : Prop), A -> A.
+Proof.
   Fail tauto.
 Abort.
 
 (** [tauto] fails since it is not defined in Ltac2. To invoke Ltac1 tactics, we need to wrap the tactics
 inside [ltac1:(..)] *)
 Goal forall (A : Prop), A -> A.
+Proof.
   ltac1:(tauto).
 Qed.
 
 
-(* Simple expressions *)
+(** ** Arithmetic expressions *)
 (* Note that int is not a data type available in Gallina *)
 (* It is primitive data type in Ltac2 *)
 Ltac2 Eval 1.
@@ -83,7 +92,7 @@ Ltac2 rec collatz n :=
 
 Ltac2 Eval collatz 10.
 
-(* Algebraic data types *)
+(** ** Algebraic data types *)
 Ltac2 Type rec PNat :=
   [ Z | S (PNat) ].
 
@@ -117,7 +126,7 @@ Ltac2 Eval { fst := 1 ; snd := "2" }.(fst).
 
 Ltac2 Eval let p := { fst := 1 ; snd := "2" } in p.(snd).
 
-(* Constructing Gallina terms *)
+(** ** Constructing Gallina terms *)
 (* To construct a Gallina term, we want to quote it with ' *)
 Ltac2 Eval '1.
 (* constr is a type that represents a Gallina term *)
@@ -160,6 +169,7 @@ Ltac2 Eval Std.eval_hnf '((fun x => x * x) 100).
 (* Trying to reduce an ill-typed term *)
 Fail Ltac2 Eval Std.eval_hnf '(1 + (fun x => x + x)).
 
+(** ** Manipulating proof state *)
 (* Ltac2 is impure. Apart from mutable cells, it's possible to query
 and mutate the proof state *)
 
@@ -203,6 +213,7 @@ Proof.
   Fail Ltac2 Eval List.find (fun (_,_,ty) => Constr.equal ty 'nat) (Control.hyps ()).
 Abort.
 
+(** ** Our first tactic **)
 (* find_assumption finds a hypothesis that matches the goal *)
 (* In general, Ltac2 foo () := ... defines a function that takes
    a unit as its first argument *)
