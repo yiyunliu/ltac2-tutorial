@@ -53,14 +53,14 @@ Qed.
 (** We can also encapsulate the foreign function call to Ltac1 inside an Ltac2
 wrapper function *)
 Ltac2 tauto () := ltac1:(tauto).
-(** Note that the [[tauto] definition from above is not recursive.
-The [[Ltac2 tauto] declaration creates a function named [[tauto] in
-the Ltac2 namespace, which is disjoint from that of Ltac1. The [[tauto] in the
-RHS of the definition, wrapped in [[ltac1:(..)], refers to the [[tauto] from
+(** Note that the [tauto] definition from above is not recursive.
+The [Ltac2 tauto] declaration creates a function named [tauto] in
+the Ltac2 namespace, which is disjoint from that of Ltac1. The [tauto] in the
+RHS of the definition, wrapped in [ltac1:(..)], refers to the [tauto] from
 he Ltac1 namespace. *)
 
 Ltac2 Eval tauto.
-(** The [[tauto] tactic we just defined has the signature [[unit -> unit].
+(** The [tauto] tactic we just defined has the signature [unit -> unit].
 Its output is not interesting and we only care about its effect on the proof
 state when we evaluate it by passing in a trivial unit argument. As the
 following example shows. *)
@@ -69,7 +69,7 @@ Proof.
   tauto ().
 Qed.
 
-(** Having to pass [[tauto] a unit value [[()] is awkward and is not
+(** Having to pass [tauto] a unit value [()] is awkward and is not
  something we are used to. This is reconciled by the use of notations. *)
 Ltac2 Notation "tauto" := tauto ().
 (** Now we can invoke tauto directly without passing it the unit argument explicitly. *)
@@ -85,11 +85,11 @@ Qed.
  start with integer literals and the addition function. *)
 Ltac2 Eval 1.
 Ltac2 Eval Int.add 1 2.
-(** [[Ltac2 Eval] is a vernacular command that evaluates an Ltac2 expression.
- In the example above, the integer [[1] evaluates to itself, and the
-expression [[Int.add 1 2] reduces to the integer [[3]. It is important to
+(** [Ltac2 Eval] is a vernacular command that evaluates an Ltac2 expression.
+ In the example above, the integer [1] evaluates to itself, and the
+expression [Int.add 1 2] reduces to the integer [3]. It is important to
  understand that the numbers appearing on the rhs are Ltac2 expressions, not
- Gallina expressions. The [[int] type is a primitive type in Ltac2, and
+ Gallina expressions. The [int] type is a primitive type in Ltac2, and
  has nothing to do with integers from the Coq standard library. *)
 Definition double_num (a : nat) := a + a.
 Fail Ltac2 Eval double_num 4.
@@ -104,11 +104,11 @@ Ltac2 Eval (fun x => x).
 Ltac2 Eval (fun x => Int.add x x) 4.
 
 (** Ltac2 also supports let bindings. Here's the previous example where the
- funciton is bound to the variable [[f]. *)
+ funciton is bound to the variable [f]. *)
 Ltac2 Eval let f := fun x => Int.add x x in f 4.
 
 (** The following command defines the doubling function as a top-level function
- named [[double_num]. *)
+ named [double_num]. *)
 Ltac2 double_num := fun x => Int.add x x.
 
 (** Here's the usual shorthand that avoids the anonymous lambda. *)
