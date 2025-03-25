@@ -1,5 +1,5 @@
 # Ltac2 tutorial
-A simple `Ltac2` tutorial that is intended to supplement the official documentation with an extensive set of examples. You can find the rendered html version (still WIP) at [https://electriclam.com/ltac2/toc.html](https://electriclam.com/ltac2/toc.html).
+A simple `Ltac2` tutorial that is intended to supplement the official documentation with an extensive set of examples. You can find the rendered html version (still WIP) at <https://blog.electriclam.com/ltac2/toc.html>.
 
 The code is known to compiles under Coq 8.16.0 and 8.18.0. If you are using an older version of Coq, certain standard library functions or language constructs might be missing (e.g. `Int.le` and `if`).
 
