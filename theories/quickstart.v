@@ -55,6 +55,161 @@ Ltac2 double'' (x : int) : int := add x x.
 
 Ltac2 double''' := fun (x : int) => add x x.
 
+(** We can also use let bindings in our definition. *)
+
+Ltac2 quadruple x :=
+  let twice f x := f (f x) in
+  twice double x.
+
+Ltac2 Eval quadruple 4.
+
+(** The Hindley-Milner inference algorithm allows us to write
+ polymorphic functions with few annotations. *)
+
+Ltac2 identity x := x.
+
+Ltac2 Check identity.
+(** Here, the ['a] stands for a type parameter, which can be
+ instantiated to the type of the argument of the [identity] function. *)
+Ltac2 Eval identity 10.
+Ltac2 Eval identity double.
+
+(** The [rec] keyword allows us to define recursive functions. Here,
+ we define the factorial function [fact] over integers, making use of
+ the library functions [le], [mul], and [sub] from the [Int] module
+ of the [Ltac2] library, which you can find #<a href="https://rocq-prover.org/doc/V9.0.0/corelib/Ltac2.Int.html">here</a>. *)
+
+Ltac2 rec fact x :=
+  if le x 0 then 1 else mul x (fact (sub x 1)).
+
+Ltac2 Eval fact 10.
+
+(** The [rec] keyword can also be used in conjunction with the [let]
+keyword to define local recursive functions. Let's use [let rec] to
+ define a more efficient tail-recursive version of [fact]. *)
+
+Ltac2 fast_fact x :=
+  let rec go x acc :=
+    if le x 0 then acc else
+      go (sub x 1) (mul x acc) in
+  go x 1.
+
+
+(** Ltac2, like its predecessor Ltac, does not enforce termination checking. *)
+Ltac2 rec loop x := loop x.
+Ltac2 Check loop.
+(** Evaluate [loop 0] (or [loop] with any argument) at your own risk,
+ as Rocq would get stuck in an infinite loop! *)
+
+
+(** In addition to functions and integers, Ltac2 supports a
+ built-in product types. The constructor takes the form [(a,b)].
+ The eliminators [fst] and [snd] allows us to extract out the
+ first component [a] and the second component [b] respectively. *)
+Ltac2 Eval (1 , 2).
+Ltac2 Eval fst (1 , 2).
+Ltac2 Eval snd (1 , 2).
+
+(** Like Haskell and OCaml, Ltac2 supports algebraic data types. *)
+(** Let's start by defining a simple type [coin], which has
+two constructors [Head] and [Tail]. Note that the constructors must
+ be capitalized. *)
+Ltac2 Type coin := [Head | Tail].
+Ltac2 Check Head.
+Ltac2 Check Tail.
+
+(** We can eliminate values of an algebraic data type through
+pattern matching,  which has a syntax that is very similar to [match]
+ for Gallina terms. *)
+
+Ltac2 flip x :=
+  match x with
+  | Head => Tail
+  | Tail => Head
+  end.
+
+(** In case you haven't noticed, when you forgot about a specific piece
+ of Ltac2 syntax, you can always make an educated guess if you are
+ already familiar with OCaml or Gallina. *)
+
+(** We can also define recursive data types by including the [rec]
+keyword. Here's how we define the [nat] type for [Ltac2]. Note that the
+parentheses around [pnat] in [S (pnat)] is not optional.  *)
+
+Ltac2 Type rec pnat := [Z | S (pnat)].
+
+Ltac2 Eval Z.
+Ltac2 Eval (S (S Z)).
+
+(** We can write a recursive function that adds two peano numbers.
+ We name our function [padd] to disambiguate it from the [add] we
+ imported from the [Int] module. *)
+Ltac2 rec padd x y :=
+  match x with
+  | Z => y
+  | S x => S (padd x y)
+  end.
+
+Ltac2 Eval padd (S (S Z)) (S Z).
+
+
+(** As an exercise, rewrite the definitions of [to_int] so
+ it converts from a peano number to its integer representation *)
+Ltac2 rec to_int (x : pnat) := 0.
+
+(* Should return 2 *)
+Ltac2 Eval to_int (S (S Z)).
+
+(** As a more interesting example, let us consider a
+ binary tree which stores integers. *)
+
+Ltac2 Type rec int_tree :=
+  [ Empty | Node (int, int_tree, int_tree) ].
+
+(** The leaf constructor [Empty] takes no argument.
+The [Node] constructor takes three arguments, including an
+ [int], and its two child nodes. These arguments are separated
+ by comma, which is quite different from Gallina's syntax, but the
+pattern matching form works the same way regardless. *)
+
+Ltac2 rec mirror (t : int_tree) : int_tree  :=
+  match t with
+  | Empty => Empty
+  | Node x l r => Node x (mirror r) (mirror l)
+  end.
+
+Ltac2 singleton x := Node x Empty Empty.
+
+Ltac2 Eval mirror (Node 1 (Node 2 (singleton 3) (singleton 4))
+                     (singleton 5)).
+
+(** The standard library of Ltac2 already includes some useful
+inductive types, including [bool] and [list]. We can print out
+ their definitions using the [Print Ltac2 Type] command. *)
+Print Ltac2 Type bool.
+Print Ltac2 Type list.
+
+(** Both data types come with special syntactic forms,*)
+Ltac2 Eval if true then 1 else 2.
+Ltac2 Eval [1;2;3].
+
+(** and library functions.  *)
+Ltac2 Eval List.length [1;2;3].
+Ltac2 Eval Bool.or true false.
+Ltac2 Eval List.fold_right add [1;2;3;4;5] 0.
+Ltac2 Eval List.fold_right mul [1;2;3;4;5] 1.
+
+(** You can check the definitions of those library functions with
+ the command [Print Ltac2] *)
+
+Print Ltac2 List.length.
+Print Ltac2 Bool.or.
+
+(** In general, you can find the documentations of the library
+functions from the #<a href="https://rocq-prover.org/doc/V9.0.0/corelib/index.html">reference manual for the standard library</a> by
+ searching the keyword "Ltac2". *)
+
+
 
 (** *** Functional Programming with Ltac2 *)
 
