@@ -286,6 +286,155 @@ Print Ltac2 Bool.or.
 functions from the #<a href="https://rocq-prover.org/doc/V9.0.0/corelib/index.html">reference manual for the standard library</a> by
  searching the keyword "Ltac2". *)
 
+(** *** Constructing and Matching Gallina Terms *)
+
+(** The standard library of Ltac2 exposes APIs that allow the programmer to use Ltac2 to construct
+Gallina/Rocq terms and manipulate proof states. *)
+
+(** Let us start by constructing the Gallina term 1 + 2. *)
+Ltac2 two_plus_one () := '(1 + 2).
+Ltac2 Check two_plus_one.
+
+(** In the definition  of [two_plus_one], we use a special syntax where we write [()] when a
+ function parameter is expected. This syntax tells Ltac2 that our function takes the unit value [()] as
+ its input. *)
+
+(** The [constr] data type is an opaque ltac2 data type used to represent Gallina terms.
+To tell Ltac2 that we are defining a Gallina term, we wrap the expression with '(...). *)
+
+(** To be able to retrieve the term, we need to pass the unit value [()] to [two_plus_one]  *)
+Ltac2 Eval two_plus_one ().
+
+
+(** Why must we define [two_plus_one] as a function instead of a constant of type [constr]?
+ In Ltac2, top-level definitions must be a value. Instead of knowing precisely what values are,
+it is helpful to think of the values as Ltac2 expressions that do not evaluate on their own.
+For example, the following definitions are valid. *)
+Ltac2 int_val := 1.
+Ltac2 func_val := fun x y => add x (add y y).
+(** In [int_val], the integer value doesn't really compute on its own. In [func_val], the function
+ doesn't evaluate/reduce unless we pass it two integer arguments. *)
+
+(** The following definition is an invalid top-level definition, because its body involves the
+call to the [add] function.  *)
+Fail Ltac2 bad_val := add 1 3.
+
+(** The following function definition is invalid, because the lambda is nested in a computation  *)
+Fail Ltac2 bad_func' := let x := add 1 3 in fun y => add x y.
+
+(** What about [constr]? Why is ['(1 + 2)] not count as a value? It turns out that when we construct
+ Gallina terms, Ltac2 always type checks the term, which may fail. *)
+Ltac2 bad_term () := '(1 + true).
+Fail Ltac2 Eval bad_term ().
+
+(** Therefore, for top-level Ltac2 definitions of Gallina terms,
+    we can only write functions that, if successfully returns, give us back a well-typed Gallina term. *)
+
+(** However, local definitions or expressions we send to [Ltac2 Eval] don't subject to the same restriction.  *)
+Ltac2 Eval let x := '(1 + 1) in x.
+Ltac2 Eval '(1 + 1).
+
+(** If you don't understand why just yet, you can simply definitions without thinking about
+ the unit parameter, and if your definition is invalid, Ltac2 will give you an error message to remind you to
+ add a [()]. *)
+
+(** Given an Ltac2 variable of type [constr], we can use the [$var] syntax to interpolate the
+ variable inside a Gallina expression we are constructing. *)
+Ltac2 Eval let x := '(1 + 1) in '($x * 2).
+
+(** The $ symbol tells Ltac2 that the variable [x] is an Ltac2 variable. Omitting the $ results in
+ an error as there's no top-level Gallina definition named [x]. *)
+Fail Ltac2 Eval let x := '(1 + 1) in '(x * 2).
+(** In fact, Rocq will give a warning that the variable [x] is unused, as the [x] in [(x * 2)] refers to
+ a Gallina variable [x], which is not in the same namespace as Ltac2 variables. *)
+
+(** As an exercise, given the following Gallina definition of [x], check the result of
+ the following [Ltac2 Eval] command and see if the return value is as expected. *)
+Notation x := (4).
+
+Ltac2 Eval let x := '(1 + 1) in '(x * $x).
+
+(** The [constr] type is opaque and therefore we cannot directly examine the ast of a Gallina term
+ by pattern matching a value of type [constr]. *)
+
+(** Instead, we use the [lazy_match!] construct to match [constr] terms.  *)
+
+Ltac2 lhs_of (x : constr) :=
+  lazy_match! x with
+  | ?a + ?b => a
+  | ?a * _ => a
+  end.
+
+Ltac2 Eval lhs_of '(100 + 2).
+Ltac2 Eval lhs_of '(44 * 7).
+
+(** The [lazy_match!] syntactic form takes a Gallina term of type [constr]. For each branch, we
+ write patterns that involve Gallina terms with the binders prefixed with a question mark.
+ When we don't care what a term is, we can use the wildcard pattern [_], as we did in the multiplcation
+ case. *)
+
+(** The pattern matching does not have to be exhaustive. If we invoke [lhs_of] on a term that doesn't
+ match any of the patterns, we end up with a [Match_failure] exception. *)
+Fail Ltac2 Eval lhs_of '(4 - 3).
+
+(** We can write more sophisticated functions such as the following, which mirrors the operands of the [+]
+ operator. *)
+Ltac2 rec mirror_plus (tm : constr) :=
+  lazy_match! tm with
+  | ?a + ?b =>
+      let rev_b := mirror_plus b in
+      let rev_a := mirror_plus a in
+      '($rev_b + $rev_a)
+  | _ => tm
+  end.
+
+Ltac2 Eval mirror_plus '(1 + 8 + 4 + 5).
+
+(** Instead of directly manipulating [constr], we can leverage Ltac2 data types for domain-specific
+problems. We use the [Arith] data type to represent the arithmetic expressions we wish to manipulate. *)
+Ltac2 Type rec Arith := [Num (constr) | Add (Arith, Arith) ].
+
+(** We write the following function that converts from [constr] to [Arith].  *)
+Ltac2 rec to_arith (a : constr) : Arith :=
+  lazy_match! a with
+  | ?l + ?r =>
+      let l' := to_arith l in
+      let r' := to_arith r in
+      Add l' r'
+  | _ => Num a
+  end.
+
+Ltac2 Eval to_arith '(1 + 8 + 4 + 5).
+
+(** The mirroring operation can then be carried out on [Arith] through the [match] form. *)
+Ltac2 rec mirror_arith (a : Arith) :=
+  match a with
+  | Num _ => a
+  | Add a b => Add (mirror_arith b) (mirror_arith a)
+  end.
+
+Ltac2 Eval mirror_arith (to_arith '(1 + 8 + 4 + 5)).
+
+(** The following function converts the [Arith] expressions back to Gallina terms  *)
+Ltac2 rec from_arith (a : Arith) :=
+  match a with
+  | Num n => n
+  | Add l r =>
+      let l' := from_arith l in
+      let r' := from_arith r in
+      '($l' + $r')
+  end.
+
+(** We can then give an alternative definition of [mirror_plus], which composes all the functions
+ we have defined so far. *)
+Ltac2 mirror_plus' a := from_arith (mirror_arith (to_arith a)).
+Ltac2 Eval mirror_plus' '(1 + 8 + 4 + 5).
+
+(** For a function as simple as [mirror_plus], our setup for [mirror_plus'] is an overkill.
+For bigger projects, leveraging the Ltac2 data type makes it more convenient to analyze
+ and transform Gallina terms. *)
+
+
 
 
 (** *** Functional Programming with Ltac2 *)
