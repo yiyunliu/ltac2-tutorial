@@ -14,6 +14,9 @@ From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
 (** ** Functional Programming with Ltac2 *)
+
+(** *** Basics *)
+
 (** The main purpose of Ltac2 is a metaprogramming language for constructing Gallina terms, which are terms
  that we use in our Rocq definitions and proof objects. The definitions of Ltac2 and Gallina live in
  different namespaces. To write Ltac2 definitions, we use commands that are prefixed [Ltac2] *)
@@ -110,6 +113,8 @@ Ltac2 Eval (1 , 2).
 Ltac2 Eval fst (1 , 2).
 Ltac2 Eval snd (1 , 2).
 
+(** *** Recursive data types and records *)
+
 (** Like Haskell and OCaml, Ltac2 supports algebraic data types. *)
 (** Let's start by defining a simple type [coin], which has
 two constructors [Head] and [Tail]. Note that the constructors must
@@ -160,11 +165,11 @@ Ltac2 rec to_int (x : pnat) := 0.
 (* Should return 2 *)
 Ltac2 Eval to_int (S (S Z)).
 
-(** As a more interesting example, let us consider a
+(** For the next example, let us consider a
  binary tree which stores integers. *)
 
 Ltac2 Type rec int_tree :=
-  [ Empty | Node (int, int_tree, int_tree) ].
+  [ IEmpty | INode (int, int_tree, int_tree) ].
 
 (** The leaf constructor [Empty] takes no argument.
 The [Node] constructor takes three arguments, including an
@@ -174,17 +179,89 @@ pattern matching form works the same way regardless. *)
 
 Ltac2 rec mirror (t : int_tree) : int_tree  :=
   match t with
-  | Empty => Empty
-  | Node x l r => Node x (mirror r) (mirror l)
+  | IEmpty => IEmpty
+  | INode x l r => INode x (mirror r) (mirror l)
   end.
 
-Ltac2 singleton x := Node x Empty Empty.
+Ltac2 singleton x := INode x IEmpty IEmpty.
 
-Ltac2 Eval mirror (Node 1 (Node 2 (singleton 3) (singleton 4))
+Ltac2 Eval mirror (INode 1 (INode 2 (singleton 3) (singleton 4))
                      (singleton 5)).
 
+
+(** We can generalize the [int_tree] definition to the following [tree] data type,
+ which abstracts the [int] type with a type parameter ['a] *)
+
+Ltac2 Type rec 'a tree :=
+  [Empty | Node ('a, 'a tree, 'a tree)].
+
+(** Note that the type arguments to the type constructor [tree] preceeds the type constructor itself.
+A tree of booleans, for example, is written as [bool tree] instead of [tree bool]. *)
+Ltac2 Check (Empty : bool tree).
+
+(** If your data type is parameterized by multiple type parameters, you need to put them together
+ with parentheses. For example, here's how we define our own pair type *)
+Ltac2 Type ('a, 'b) mypair := [Pair ('a , 'b)].
+
+Ltac2 Check Pair 1 true.
+
+(** We can recover the projection operators through pattern matching.  *)
+Ltac2 myfst a :=
+  match a with
+  | Pair x y => x
+  end.
+
+Ltac2 mysnd a :=
+  match a with
+  | Pair x y => y
+  end.
+
+(** Again, thanks to the Hindley-Milner style inference, our functions are automatically polymorphic
+ without any explicit annotations. *)
+Ltac2 Check myfst.
+Ltac2 Check mysnd.
+Ltac2 Eval myfst (Pair 1 true).
+Ltac2 Eval mysnd (Pair 1 true).
+
+(** A different (and perhaps better) way of defining pairs is to use a record type definition,
+ where we specify the data type by specifying the fields the type contains.  *)
+Ltac2 Type ('a, 'b) RPair := {rfst : 'a; rsnd : 'b}.
+
+(** To construct a value of a record type, we specify what the individual fields should be. *)
+Ltac2 Eval {rfst := 4; rsnd := 9}.
+
+(** Of course, we can always define a constructor to save some typing.  *)
+Ltac2 rpair a b := {rfst := a; rsnd := b}.
+(** The following ltac2 expression evaluates to the same pair containing 4 and 9 *)
+Ltac2 Eval rpair 4 9.
+
+(** We can project out individual component by appending a record value with .(fieldname)  *)
+Ltac2 Eval {rfst := 4; rsnd := 9}.(rfst).
+Ltac2 Eval {rfst := 4; rsnd := 9}.(rsnd).
+
+(** We can define the following [swap] function that swaps the first and second components of a pair *)
+Ltac2 swap a := rpair (a.(rsnd)) (a.(rfst)).
+
+Ltac2 Eval swap (rpair true 1).
+
+(** The [rec] keyword also works for record types. Here's how we can define an infinite stream type.
+ Note that the tail is defined as a function that maps a trivial unit input to another stream.
+ We need to use the trivial function arrow to "thunk" the tail since Ltac2 is strict  *)
+Ltac2 Type rec 'a stream :={shead : 'a ; stail : unit -> 'a stream }.
+
+(** We can access the actual tail of the list by passing it the unit value [()].  *)
+Ltac2 snext a := a.(stail) ().
+
+(** We define the sequence of numbers n, n + 1, n + 2, ... as follows *)
+Ltac2 rec incr_seq n :=
+  {shead := n ; stail := fun _ => incr_seq (add 1 n)}.
+
+Ltac2 Eval snext (incr_seq 4).
+Ltac2 Eval snext (snext (snext (snext (incr_seq 4)))).
+
+(** *** Data types from the standard library  *)
 (** The standard library of Ltac2 already includes some useful
-inductive types, including [bool] and [list]. We can print out
+data types, including [bool] and [list]. We can print out
  their definitions using the [Print Ltac2 Type] command. *)
 Print Ltac2 Type bool.
 Print Ltac2 Type list.
