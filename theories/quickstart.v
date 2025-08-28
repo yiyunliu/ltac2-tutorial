@@ -1,4 +1,4 @@
-(** * Ltac2 Tutorial: Programming basics and proof state manipulation *)
+(** * Ltac2 Quickstart *)
 
 (** Ltac2 is a new language for writing tactics in Coq. Unlike its
  predecessor Ltac, Ltac2 supports features such as data types, static typing, and
@@ -105,7 +105,7 @@ Ltac2 Check loop.
  as Rocq would get stuck in an infinite loop! *)
 
 
-(** In addition to functions and integers, Ltac2 supports a
+(** In addition to functions and integers, Ltac2 supports
  built-in product types. The constructor takes the form [(a,b)].
  The eliminators [fst] and [snd] allows us to extract out the
  first component [a] and the second component [b] respectively. *)
@@ -133,12 +133,12 @@ Ltac2 flip x :=
   | Tail => Head
   end.
 
-(** In case you haven't noticed, when you forgot about a specific piece
+(** In case you haven't noticed, if you forgot a specific piece
  of Ltac2 syntax, you can always make an educated guess if you are
  already familiar with OCaml or Gallina. *)
 
 (** We can also define recursive data types by including the [rec]
-keyword. Here's how we define the [nat] type for [Ltac2]. Note that the
+keyword. Here's how we define the nat type for [Ltac2]. Note that the
 parentheses around [pnat] in [S (pnat)] is not optional.  *)
 
 Ltac2 Type rec pnat := [Z | S (pnat)].
@@ -292,6 +292,8 @@ Print Ltac2 Bool.or.
 functions from the #<a href="https://rocq-prover.org/doc/V9.0.0/corelib/index.html">reference manual for the standard library</a> by
  searching the keyword "Ltac2". *)
 
+(** ** Interacting with proof states   *)
+
 (** *** Constructing and Matching Gallina Terms *)
 
 (** The standard library of Ltac2 exposes APIs that allow the programmer to use Ltac2 to construct
@@ -340,7 +342,7 @@ Fail Ltac2 Eval bad_term ().
 Ltac2 Eval let x := '(1 + 1) in x.
 Ltac2 Eval '(1 + 1).
 
-(** If you don't understand why just yet, you can simply definitions without thinking about
+(** If you don't understand why just yet, you can simply write definitions without thinking about
  the unit parameter, and if your definition is invalid, Ltac2 will give you an error message to remind you to
  add a [()]. *)
 
@@ -555,4 +557,162 @@ Goal forall (A B : Prop), A -> B -> A.
 Qed.
 
 (** We can also expose functions/data from Ltac1 to Ltac2, though the wrapper would become more complicated as we would need to convert from an untyped language to a statically typed language. The reader can
- refer to the #<a href="https://rocq-prover.org/doc/V9.0.0/refman/proof-engine/ltac2.html#compatibility-layer-with-ltac1">reference manual</a> for details. *)
+ refer to the #<a href="https://rocq-prover.org/doc/V9.0.0/refman/proof-engine/ltac2.html##compatibility-layer-with-ltac1">reference manual</a> for details. *)
+
+
+(** Finally, I want to point out that the [myassumption'] function is defined in a way to showcase
+ the strength of Ltac2 as an ML-family language where you can make full use of your functional
+  programming knowledge. An alternative (and perhaps easier) way is to use the special
+ [lazy_match! goal with] form. *)
+
+Ltac2 myassumption'' () :=
+  Control.refine (fun _ =>
+                    lazy_match! goal with
+                    | [h : ?a |- ?a] =>
+                        Control.hyp h
+                    end).
+
+(** By picking the same variable [?a] for both the premise (before the [|-]) and the goal (after the [|-]),
+ we ensure that the identifier [h] has a type that matches the goal. *)
+
+Ltac myassumption'' := ltac2:(myassumption'' ()).
+
+Goal forall (A B : Prop), A -> B -> A.
+  intros.
+  myassumption''.
+Qed.
+
+(** *** Sequencing Tactics  *)
+(** Similar to Ltac, Ltac2 uses the semicolon operator to sequentially run two tactics.
+  An idiomatic use of semicolon in Ltac involves running one tactic such as [destruct] followed by
+  another tactic to discharge multiple subgoals at once. *)
+Goal forall b, b = negb (negb  b).
+  destruct b; reflexivity.
+Qed.
+
+(** Here, note that [destruct b; reflexivity] is not just calling  [destruct b] and [reflexivity]
+    in sequence.
+    After generating multiple subgoals with [destruct b], there's the action of focusing on each
+    generated subgoals and calling [reflexivity] on each individual goal.  *)
+
+(** In Ltac and Ltac2, the semicolon can be viewed as having the same semantics as the semicolon
+from ML, which does nothing
+ beyond sequentially chaining two computations. Thus, it is the responsibility of the second
+ tactic to decide how it wants to handle multiple goals. The [lazy_match!] construct, for example,
+ would simply fail if it directly follows a semicolon with multiple subgoals, unlike its Ltac1 counterpart,
+which focuses on the subgoals on its own. *)
+
+
+(** For example, consider the following alternative definition of [myassumption''], which
+ performs the pattern matching before the call to [Control.refine] *)
+Ltac2 p_assumption () :=
+  lazy_match! goal with
+  | [h : ?a |- ?a] =>
+      Control.refine (fun _ => Control.hyp h)
+  end.
+
+Goal forall A, (A \/ A) -> A.
+  intros A h.
+  Fail destruct h; ltac2:(p_assumption ()).
+  (* Fails because the ltac2 [lazy_match!] doesn't focus the goals on its own *)
+  destruct h; lazymatch goal with
+         | [h : ?a |- ?a] => apply h
+         end.
+  (* Works because [lazymatch] focuses each of the subgoals *)
+Abort.
+
+(** For the example above, focusing on the subgoals might appear to be a more sensible default,
+ however, there are cases where we know in advance that no subgoals will be generated, or
+ we are only interested in running the tactic on specific goals. Thus, Ltac2 gives the choice
+ to the user to decide which behavior is desired. We'll how we can make use of the flexibility
+ shortly. *)
+
+(** For now, to recover the Ltac1 behavior, we wrap our tactic with [Control.enter], which focuses on the
+ subgoals generated by the previous tactic. *)
+
+Goal forall A, (A \/ A) -> A.
+  intros A h.
+  destruct h; ltac2:(Control.enter p_assumption).
+  Restart.
+  (** Note that [myassumption''] works without [Control.enter], because [Control.refine] knows how
+   to handle an unfocused proof state. *)
+  intros A h.
+  destruct h; myassumption''.
+Qed.
+
+(** An alternative to focusing on the subgoals one by one is to focus on one specific subgoal.
+ The following [runfirst] tactic uses the [Control.focus] function to focus on the first goal
+ and execute the tactic it takes as an argument. *)
+
+Ltac2 runfirst tac : unit := Control.focus 1 1 tac.
+
+Goal forall A B , A \/ (A /\ B) -> A.
+  intros A B h.
+  destruct h; ltac2:(runfirst p_assumption).
+  destruct H. ltac2:(p_assumption ()).
+Qed.
+
+(** What [Control.focus i j tac] does is focusing on the [i] through [j]th subgoals before running [tac].
+By instantiating both [i] and [j] to 1, we focus only on the very first goal so the [p_assumption]
+ tactic successfully discharges the first subgoal but leaves the second one alone. *)
+
+
+(** *** Basic Exception Handling  *)
+(** Thus far, we have been sloppy with the error handling of our programs. In the definition of
+ [myassumption'], for example, if no matching hypothesis can be found, one of those API calls/matches
+ that interact with the proof state would fail and the user of our tactic is directly exposed
+ to the internal exceptions that are hard to parse. *)
+
+(** To provide more useful information to the user of the tactics (which might very well be yourself!),
+Ltac2 provides a very sophisticated system for exception handling and backtracking. Here, we consider
+ only two functions: [Control.zero] and [Control.plus], which roughly correspond to throw and catch from
+ languages like Java. *)
+
+(** Consider the following [get_elem] function, which returns the root element of a tree if it's non-empty,
+ but throws a [No_value] exception with [Control.zero] otherwise. *)
+Ltac2 Check Control.zero.
+
+Ltac2 get_elem (t : 'a tree) :=
+  match t with
+  | Node a _ _ => a
+  | Empty => Control.zero No_value
+  end.
+
+(** Running [get_elem Empty] would give us the expected exception  *)
+Fail Ltac2 Eval get_elem Empty.
+
+(** Any exceptions thrown by [Control.zero] is catchable using [Control.plus]. Here's how we
+ define a function that tries to call [get_elem] and returns a default argument when an exception
+ is thrown. *)
+
+Ltac2 Check Control.plus.
+
+Ltac2 get_elem_def (t : 'a tree) (e : 'a) :=
+  Control.plus (fun _ => get_elem t)
+    (fun _ => e).
+
+Ltac2 Eval get_elem_def Empty 4.
+Ltac2 Eval get_elem_def (Node 5 Empty Empty) 4.
+
+(** For exceptions that are catastrophic and are not meant to be caught, you can use
+ [Control.throw]. *)
+
+Ltac2 get_elem' (t : 'a tree) :=
+  match t with
+  | Node a _ _ => a
+  | Empty => Control.throw No_value
+  end.
+
+Fail Ltac2 Eval Control.plus (fun _ => get_elem' Empty) (fun _ => 4).
+(* Inlining [get_elem_def] just for a side-by-side comparison *)
+Ltac2 Eval Control.plus (fun _ => get_elem Empty) (fun _ => 4).
+
+
+(** *** Bonus: Advanced FFI for handling tacticals   *)
+
+(** What's sometimes referred to as tacticals in Ltac1 are simply unit valued functions in Ltac2.
+One can think of tacticals as nothing more than tactics that may take other tactics as inputs.
+ One such example is the [runfirst] function we have defined earlier. In this section, we
+ discuss how we can use notations on tacticals and export them to Ltac1. *)
+
+(** TODO   *)
