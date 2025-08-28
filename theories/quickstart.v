@@ -715,4 +715,41 @@ One can think of tacticals as nothing more than tactics that may take other tact
  One such example is the [runfirst] function we have defined earlier. In this section, we
  discuss how we can use notations on tacticals and export them to Ltac1. *)
 
-(** TODO   *)
+(** The [runfirst] function takes a thunk as its input. However, the end user is more likely to pass in
+ a notation rather than a thunk (i.e. [myassumption] rather than [myassumption']). To avoid having
+to wrap the input notation [tac] within [fun () => tac] to recover the explicit thunk,
+we define the notation for [runfirst] as follows. *)
+
+Ltac2 Notation "runfirst" tac(thunk(tactic(6)))  := runfirst tac.
+
+(** Here, [tac] is the name we assign to the input tactic which we'd like to apply to the first goal.
+ [tactic(6)] tells Rocq that [tac] is a placeholder for an Ltac2 expression. By wrapping around [tactic(6)]
+ in [thunk(...)], Rocq automatically wraps around the expression in [fun _ => ...] so the user doesn't
+ have to write it themself. *)
+
+Goal forall A B , A \/ (A /\ B) -> A.
+  intros A B h.
+  (* we can now directly have runfirst take the notation myassumption as input *)
+  destruct h; ltac2:(runfirst myassumption).
+Admitted.
+
+
+(** How do we make [runfirst] available in Ltac1? The definition below allows us to use [runfirst]
+ in Ltac1, and we'll explain how it works shortly. *)
+Ltac runfirst := ltac2:(tac |- runfirst (Ltac1.run tac)).
+
+(** The [ltac2:(arg1 ... argn |- ltac2-expr)] form defines an Ltac1 function with n inputs.
+Inside ltac2-expr, [arg1] through [argn] are variables in scope of type [Ltac1.t], which represents
+ an (untyped) Ltac1 expression. [Ltac1.t] is an opaque type from the [Ltac1] module (of the [Ltac2] package),
+and we can either cast them to (typed) Ltac2 expressions through [Ltac1.to_constr], [Ltac1.to_ident] or
+ vice versa through [Ltac1.from_constr], [Ltac1.from_ident]. Here, the [tac] argument is a tactic,
+ so we don't perform any conversion and simply run it through [Ltac1.run] and pass the whole [Ltac1.run tac]
+expression to the [runfirst] notation so it is applied to the first goal. *)
+
+(** Now we can use [runfirst] together with the Ltac1 tactics from the standard library. *)
+
+Goal forall A B , (A /\ B) \/ A -> A.
+  intros A B h.
+  destruct h; runfirst tauto.
+  tauto.
+Qed.
